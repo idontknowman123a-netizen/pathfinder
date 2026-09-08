@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useChat } from '@ai-sdk/react'
 import { Sparkles, Send, Bot } from 'lucide-react'
-import type { ChatContext } from '@/app/api/chat/route'
+import { generateReply, type ChatContext } from '@/lib/chat-engine'
 
 const suggestions = [
   '💰 Mức lương bao nhiêu?',
@@ -16,21 +15,39 @@ const suggestions = [
   '⚠️ Khó khăn của nghề là gì?',
 ]
 
+type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string }
+
+let messageCounter = 0
+const nextId = () => `m${Date.now()}-${messageCounter++}`
+
 export function PathfinderChat({ context }: { context: ChatContext }) {
-  const { messages, sendMessage, status } = useChat()
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [typing, setTyping] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const busy = status === 'submitted' || status === 'streaming'
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, status])
+  }, [messages, typing])
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 
   const send = (text: string) => {
     const value = text.trim()
-    if (!value || busy) return
-    sendMessage({ text: value }, { body: { context } })
+    if (!value || typing) return
+    setMessages((prev) => [...prev, { id: nextId(), role: 'user', text: value }])
     setInput('')
+    setTyping(true)
+
+    // Generate the answer locally, then reveal it after a short, natural pause
+    // so it feels like Pathfinder AI is thinking and typing a reply.
+    const reply = generateReply(value, context)
+    const delay = Math.min(1500, 550 + reply.length * 2.5)
+    timerRef.current = setTimeout(() => {
+      setMessages((prev) => [...prev, { id: nextId(), role: 'assistant', text: reply }])
+      setTyping(false)
+    }, delay)
   }
 
   return (
@@ -66,9 +83,6 @@ export function PathfinderChat({ context }: { context: ChatContext }) {
 
         {messages.map((message) => {
           const isUser = message.role === 'user'
-          const text = message.parts
-            .map((part) => (part.type === 'text' ? part.text : ''))
-            .join('')
           return (
             <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
               <div
@@ -78,18 +92,21 @@ export function PathfinderChat({ context }: { context: ChatContext }) {
                     : 'rounded-bl-lg bg-[#f4f7f5] text-[#28414f]'
                 }`}
               >
-                {text}
+                {message.text}
               </div>
             </div>
           )
         })}
 
-        {status === 'submitted' && (
+        {typing && (
           <div className="flex justify-start">
-            <div className="flex gap-1.5 rounded-3xl rounded-bl-lg bg-[#f4f7f5] px-4 py-4">
-              <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0]" />
-              <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0] [animation-delay:150ms]" />
-              <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0] [animation-delay:300ms]" />
+            <div className="flex items-center gap-2 rounded-3xl rounded-bl-lg bg-[#f4f7f5] px-4 py-4">
+              <span className="flex gap-1.5">
+                <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0]" />
+                <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0] [animation-delay:150ms]" />
+                <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0] [animation-delay:300ms]" />
+              </span>
+              <span className="text-xs text-[#7c96a3]">Pathfinder AI đang suy nghĩ...</span>
             </div>
           </div>
         )}
@@ -101,7 +118,7 @@ export function PathfinderChat({ context }: { context: ChatContext }) {
             <button
               key={s}
               onClick={() => send(s)}
-              disabled={busy}
+              disabled={typing}
               className="whitespace-nowrap rounded-full border border-[#dbe4e8] bg-[#f6f5ef] px-3.5 py-2 text-xs font-medium text-[#3f5b6a] transition hover:border-[#9cc6c0] hover:bg-white disabled:opacity-50"
             >
               {s}
@@ -133,7 +150,7 @@ export function PathfinderChat({ context }: { context: ChatContext }) {
           />
           <button
             type="submit"
-            disabled={busy || !input.trim()}
+            disabled={typing || !input.trim()}
             aria-label="Gửi câu hỏi"
             className="grid size-11 shrink-0 place-items-center rounded-full bg-[#ff8066] text-[#102a43] transition hover:bg-[#ff977f] disabled:cursor-not-allowed disabled:opacity-50"
           >

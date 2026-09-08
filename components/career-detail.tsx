@@ -28,7 +28,7 @@ import {
 } from '@/lib/pathfinder-data'
 import { getCareerDetail, careerReason } from '@/lib/career-details'
 import { PathfinderChat } from '@/components/pathfinder-chat'
-import type { ChatContext } from '@/app/api/chat/route'
+import type { ChatContext } from '@/lib/chat-engine'
 
 function Card({
   icon,
@@ -90,14 +90,34 @@ export function CareerDetail({ state, go }: { state: AppState; go: (s: string) =
 
   const reason = careerReason(career, result.type, state.preferences, score)
 
+  const similarCareers = useMemo(
+    () =>
+      careers
+        .filter((c) => c.field === career.field && c.id !== career.id)
+        .slice(0, 4)
+        .map((c) => c.name),
+    [career.field, career.id],
+  )
+
   const context: ChatContext = {
     careerName: career.name,
     careerField: career.field,
     careerOverview: detail.overview,
+    careerTasks: detail.dailyWork,
     careerSkills: detail.skills,
+    careerTools: detail.tools,
     careerMajors: detail.majors,
-    careerSalary: detail.salary.map((s) => `${s.label}: ${s.range}`).join(' | '),
-    careerOverseas: detail.overseas,
+    careerSubjects: detail.subjects,
+    careerWorkEnvironment: detail.workEnvironment,
+    careerPros: detail.pros,
+    careerChallenges: detail.challenges,
+    careerFutures: detail.futures,
+    careerRoadmap: detail.roadmap,
+    salary: detail.salary,
+    marketDemand: detail.marketDemand,
+    overseas: detail.overseas,
+    similarCareers,
+    matchScore: score,
     mbti: result.type,
     mbtiTitle: personality.title,
     strengths: personality.strengths,
