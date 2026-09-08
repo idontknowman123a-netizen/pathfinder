@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
-import { Sparkles, Send, Bot } from 'lucide-react'
+import { Sparkles, Send, Bot, RotateCw, AlertTriangle } from 'lucide-react'
 import type { ChatContext } from '@/app/api/chat/route'
 
 const suggestions = [
@@ -17,7 +17,7 @@ const suggestions = [
 ]
 
 export function PathfinderChat({ context }: { context: ChatContext }) {
-  const { messages, sendMessage, status } = useChat()
+  const { messages, sendMessage, status, error, regenerate, clearError } = useChat()
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const busy = status === 'submitted' || status === 'streaming'
@@ -29,8 +29,15 @@ export function PathfinderChat({ context }: { context: ChatContext }) {
   const send = (text: string) => {
     const value = text.trim()
     if (!value || busy) return
+    if (error) clearError()
     sendMessage({ text: value }, { body: { context } })
     setInput('')
+  }
+
+  const retry = () => {
+    if (busy) return
+    clearError()
+    regenerate({ body: { context } })
   }
 
   return (
@@ -86,10 +93,33 @@ export function PathfinderChat({ context }: { context: ChatContext }) {
 
         {status === 'submitted' && (
           <div className="flex justify-start">
-            <div className="flex gap-1.5 rounded-3xl rounded-bl-lg bg-[#f4f7f5] px-4 py-4">
-              <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0]" />
-              <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0] [animation-delay:150ms]" />
-              <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0] [animation-delay:300ms]" />
+            <div className="flex items-center gap-2 rounded-3xl rounded-bl-lg bg-[#f4f7f5] px-4 py-4">
+              <span className="flex gap-1.5">
+                <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0]" />
+                <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0] [animation-delay:150ms]" />
+                <span className="size-2 animate-bounce rounded-full bg-[#9cc6c0] [animation-delay:300ms]" />
+              </span>
+              <span className="text-xs text-[#7c96a3]">Pathfinder AI đang suy nghĩ...</span>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-3xl rounded-bl-lg border border-[#f3c9bf] bg-[#fdf1ee] px-4 py-3 text-sm leading-6 text-[#9a3f2b]">
+              <div className="mb-1 flex items-center gap-2 font-semibold">
+                <AlertTriangle className="size-4" />
+                Không nhận được phản hồi
+              </div>
+              <p>Pathfinder AI tạm thời chưa trả lời được. Bạn vui lòng thử lại nhé.</p>
+              <button
+                onClick={retry}
+                disabled={busy}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#ff8066] px-3.5 py-1.5 text-xs font-semibold text-[#102a43] transition hover:bg-[#ff977f] disabled:opacity-50"
+              >
+                <RotateCw className="size-3.5" />
+                Thử lại
+              </button>
             </div>
           </div>
         )}

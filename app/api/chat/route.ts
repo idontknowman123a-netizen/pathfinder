@@ -66,16 +66,38 @@ NGUYÊN TẮC TRẢ LỜI:
 7. Nếu người dùng hỏi ngoài phạm vi định hướng nghề nghiệp, hãy nhẹ nhàng dẫn dắt về chủ đề nghề nghiệp và học tập.`
 }
 
+function errorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? '')
+  if (/credit card|customer_verification_required|free credits/i.test(raw)) {
+    return 'Pathfinder AI hiện chưa thể trả lời vì AI Gateway của dự án chưa được kích hoạt (cần thêm thẻ thanh toán để mở khóa tín dụng miễn phí trên Vercel). Vui lòng thử lại sau khi đã kích hoạt.'
+  }
+  if (/rate.?limit|429/i.test(raw)) {
+    return 'Pathfinder AI đang nhận quá nhiều yêu cầu cùng lúc. Bạn vui lòng thử lại sau giây lát nhé.'
+  }
+  return 'Xin lỗi, Pathfinder AI gặp sự cố khi xử lý câu hỏi của bạn. Bạn vui lòng thử lại nhé.'
+}
+
 export async function POST(req: Request) {
-  const { messages, context }: { messages: UIMessage[]; context?: ChatContext } = await req.json()
+  try {
+    const { messages, context }: { messages: UIMessage[]; context?: ChatContext } = await req.json()
 
-  const result = streamText({
-    model: 'google/gemini-2.5-flash',
-    system: buildSystem(context),
-    messages: await convertToModelMessages(messages),
-  })
+    const result = streamText({
+      model: 'google/gemini-2.5-flash',
+      system: buildSystem(context),
+      messages: await convertToModelMessages(messages),
+    })
 
-  return createUIMessageStreamResponse({
-    stream: toUIMessageStream({ stream: result.stream }),
-  })
+    return createUIMessageStreamResponse({
+      stream: toUIMessageStream({
+        stream: result.stream,
+        onError: errorMessage,
+      }),
+    })
+  } catch (error) {
+    console.log('[v0] /api/chat error:', error)
+    return new Response(JSON.stringify({ error: errorMessage(error) }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
 }
