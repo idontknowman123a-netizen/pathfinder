@@ -461,6 +461,38 @@ export function getCareerDetail(career: Career): CareerDetail {
   }
 }
 
+export type PersonalizedRoadmap = {
+  have: string[]
+  develop: string[]
+  steps: RoadmapStep[]
+}
+
+export function buildPersonalizedRoadmap(
+  career: Career,
+  detail: CareerDetail,
+  type: string,
+  prefs: Preferences,
+): PersonalizedRoadmap {
+  const personality = getPersonality(type)
+  const profileSignals = [...personality.strengths, ...prefs.interests, ...prefs.priorities].map((item) => item.toLowerCase())
+  const normalized = (item: string) => item.toLowerCase().replace(/kỹ năng|khả năng|tư duy|và/g, '').trim()
+  const have = career.skills.filter((skill) => {
+    const words = normalized(skill).split(/\s+/).filter((word) => word.length > 3)
+    return words.some((word) => profileSignals.some((signal) => signal.includes(word) || word.includes(signal)))
+  }).slice(0, 3)
+  const develop = career.skills.filter((skill) => !have.includes(skill)).slice(0, 3)
+  const focus = develop.length ? develop.slice(0, 2).join(' và ').toLowerCase() : detail.skills.slice(0, 2).join(' và ').toLowerCase()
+  const profile = have.length ? `Bạn đã có nền tảng về ${have.join(', ').toLowerCase()}.` : `Hãy bắt đầu bằng việc nhận diện và luyện những điểm mạnh đang có của bạn.`
+  const steps = detail.roadmap.map((step, index) => {
+    if (index === 0) return { ...step, desc: `${profile} ${step.desc}` }
+    if (index === 1) return { ...step, desc: `${step.desc} Ưu tiên bổ sung ${focus}.` }
+    if (index === 2) return { ...step, desc: `${step.desc} Chọn một dự án nhỏ để luyện ${focus} và ghi lại kết quả.` }
+    if (index === 3) return { ...step, desc: `${step.desc} Tìm phản hồi từ mentor để biến ${focus} thành năng lực thực tế.` }
+    return step
+  })
+  return { have, develop, steps }
+}
+
 export function careerReason(career: Career, type: string, prefs: Preferences, score: number): string {
   const p = getPersonality(type)
   const parts: string[] = []
