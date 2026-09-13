@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ArrowLeft,
   Check,
@@ -17,6 +17,9 @@ import {
   Coins,
   LineChart,
   Globe,
+  Circle,
+  CircleCheck,
+  Target,
 } from 'lucide-react'
 import {
   careers,
@@ -26,7 +29,7 @@ import {
   personalize,
   type AppState,
 } from '@/lib/pathfinder-data'
-import { getCareerDetail, careerReason } from '@/lib/career-details'
+import { buildPersonalizedRoadmap, getCareerDetail, careerReason } from '@/lib/career-details'
 import { PathfinderChat } from '@/components/pathfinder-chat'
 import type { ChatContext } from '@/lib/chat-engine'
 
@@ -89,6 +92,11 @@ export function CareerDetail({ state, go }: { state: AppState; go: (s: string) =
   }, [result.type, state.preferences, career.id])
 
   const reason = careerReason(career, result.type, state.preferences, score)
+  const personalizedRoadmap = useMemo(
+    () => buildPersonalizedRoadmap(career, detail, result.type, state.preferences),
+    [career, detail, result.type, state.preferences],
+  )
+  const [completedSteps, setCompletedSteps] = useState<number[]>([])
 
   const similarCareers = useMemo(
     () =>
@@ -200,30 +208,53 @@ export function CareerDetail({ state, go }: { state: AppState; go: (s: string) =
               </Card>
             </div>
 
-            {/* Roadmap */}
+            {/* Personalized roadmap */}
             <div className="mt-4 rounded-3xl border border-[#dbe4e8] bg-white p-7">
-              <h2 className="flex items-center gap-2.5 text-lg font-semibold text-[#102a43]">
-                <span className="grid size-9 place-items-center rounded-xl bg-[#e2f0ea] text-[#2e8277]">
-                  <Route className="size-4" />
-                </span>
-                Lộ trình phát triển
-              </h2>
-              <ol className="mt-6 grid gap-0">
-                {detail.roadmap.map((step, i) => (
-                  <li key={step.stage} className="relative flex gap-4 pb-7 last:pb-0">
-                    {i < detail.roadmap.length - 1 && (
-                      <span className="absolute left-[15px] top-8 h-full w-px bg-[#dbe4e8]" aria-hidden />
-                    )}
-                    <span className="z-10 mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-[#102a43] font-mono text-xs font-bold text-[#f6f5ef]">
-                      {i + 1}
-                    </span>
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-[0.14em] text-[#2e8277]">{step.stage}</div>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="flex items-center gap-2.5 text-lg font-semibold text-[#102a43]">
+                    <span className="grid size-9 place-items-center rounded-xl bg-[#e2f0ea] text-[#2e8277]"><Route className="size-4" /></span>
+                    Lộ trình nghề nghiệp của bạn
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#587083]">
+                    Được ghép từ hồ sơ {result.type}, sở thích và yêu cầu của nghề {career.name}. Hãy đánh dấu từng bước khi bạn sẵn sàng.
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-[#fff4ef] px-3 py-2 text-xs font-semibold text-[#a15843]">
+                  {completedSteps.length}/{personalizedRoadmap.steps.length} bước đã đánh dấu
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-[#c9dedb] bg-[#f4faf7] p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[#235f58]"><CircleCheck className="size-4" /> Bạn đã có</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(personalizedRoadmap.have.length ? personalizedRoadmap.have : personality.strengths.slice(0, 2)).map((item) => <span key={item} className="rounded-full bg-white px-3 py-1.5 text-xs text-[#3f5b6a]">{item}</span>)}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-[#f4c3b8] bg-[#fffaf5] p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[#a15843]"><Target className="size-4" /> Bạn cần phát triển</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {personalizedRoadmap.develop.map((item) => <span key={item} className="rounded-full bg-white px-3 py-1.5 text-xs text-[#6e5348]">{item}</span>)}
+                  </div>
+                </div>
+              </div>
+
+              <ol className="mt-7 grid gap-0">
+                {personalizedRoadmap.steps.map((step, i) => {
+                  const complete = completedSteps.includes(i)
+                  return <li key={step.stage} className="relative flex gap-4 pb-7 last:pb-0">
+                    {i < personalizedRoadmap.steps.length - 1 && <span className="absolute left-[15px] top-8 h-full w-px bg-[#dbe4e8]" aria-hidden />}
+                    <button type="button" aria-label={`${complete ? 'Bỏ đánh dấu' : 'Đánh dấu'} ${step.title}`} onClick={() => setCompletedSteps((current) => complete ? current.filter((stepIndex) => stepIndex !== i) : [...current, i])} className={`z-10 mt-0.5 grid size-8 shrink-0 place-items-center rounded-full font-mono text-xs font-bold transition ${complete ? 'bg-[#2e8277] text-white' : 'bg-[#102a43] text-[#f6f5ef]'}`}>
+                      {complete ? <CircleCheck className="size-4" /> : <Circle className="size-4" />}
+                    </button>
+                    <div className={complete ? 'opacity-60' : ''}>
+                      <div className="text-xs font-bold uppercase tracking-[0.14em] text-[#2e8277]">{String(i + 1).padStart(2, '0')} · {step.stage}</div>
                       <div className="mt-1 font-semibold text-[#102a43]">{step.title}</div>
                       <p className="mt-1 text-sm leading-6 text-[#587083]">{step.desc}</p>
                     </div>
                   </li>
-                ))}
+                })}
               </ol>
             </div>
 
